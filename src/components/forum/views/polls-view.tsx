@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FORUM_POLLS, type Poll } from "@/lib/forum-data";
+import type { Poll } from "@/lib/forum-data";
 import {
 	CheckBadge,
 	Dot,
@@ -24,6 +24,7 @@ export function PollsView({
 	lockStyle,
 	density,
 	activeCat,
+	polls,
 	votes,
 	showCounts,
 	onVote,
@@ -34,6 +35,7 @@ export function PollsView({
 	lockStyle: LockStyle;
 	density: Density;
 	activeCat: string;
+	polls: Poll[];
 	votes: Record<string, number>;
 	showCounts: boolean;
 	onVote: (postId: string, idx: number) => void;
@@ -41,12 +43,12 @@ export function PollsView({
 	onNewPoll: () => void;
 }) {
 	const [sort, setSort] = useState<"hot" | "new" | "closing">("hot");
-	let polls = FORUM_POLLS;
-	if (activeCat !== "all") polls = polls.filter((p) => p.tag === activeCat);
+	const filtered =
+		activeCat === "all" ? polls : polls.filter((p) => p.tag === activeCat);
 
-	const visible = polls.slice(0, 1);
-	const gated = polls.slice(1);
-	const empty = polls.length === 0;
+	const visible = filtered.slice(0, 1);
+	const gated = filtered.slice(1);
+	const empty = filtered.length === 0;
 
 	return (
 		<>
@@ -90,9 +92,9 @@ export function PollsView({
 				right={
 					<>
 						<strong style={{ color: NS_COLORS.muted, fontWeight: 600 }}>
-							{polls.length}
+							{filtered.length}
 						</strong>{" "}
-						open {polls.length === 1 ? "poll" : "polls"}
+						open {filtered.length === 1 ? "poll" : "polls"}
 					</>
 				}
 			/>
@@ -205,7 +207,7 @@ function PollRow({
 		(m, o, i, a) => (o.votes >= a[m].votes ? i : m),
 		0,
 	);
-	const showResults = voted != null || showCounts;
+	const showResults = voted != null || showCounts || !!post.closed;
 	const maxV = Math.max(...post.options.map((o) => o.votes), 1);
 
 	return (
@@ -307,7 +309,7 @@ function PollRow({
 					<span style={{ fontSize: 11, color: NS_COLORS.faint }}>
 						posted{" "}
 						<span style={{ fontFamily: "var(--font-mono)" }}>
-							ns_anon_{post.id}
+							{post.authorHandle}
 						</span>{" "}
 						· {post.time}
 					</span>
@@ -343,7 +345,7 @@ function PollRow({
 						post={post}
 						voted={voted}
 						onVote={onVote}
-						showCounts={showCounts}
+						showCounts={showCounts || !!post.closed}
 					/>
 				</div>
 

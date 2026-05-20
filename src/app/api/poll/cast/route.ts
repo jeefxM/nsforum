@@ -10,21 +10,23 @@ export async function POST(req: NextRequest) {
 		return NextResponse.json({ error: "no_session" }, { status: 401 });
 	}
 
-	let body: { option?: unknown };
+	let body: { pollId?: unknown; option?: unknown };
 	try {
 		body = await req.json();
 	} catch {
 		return NextResponse.json({ error: "bad_json" }, { status: 400 });
 	}
 
-	if (typeof body.option !== "string") {
+	if (typeof body.pollId !== "string") {
+		return NextResponse.json({ error: "missing_poll" }, { status: 400 });
+	}
+	if (typeof body.option !== "number") {
 		return NextResponse.json({ error: "missing_option" }, { status: 400 });
 	}
 
-	const result = await castVote(session.nullifier, body.option);
+	const result = await castVote(body.pollId, session.nullifier, body.option);
 	if (!result.ok) {
 		return NextResponse.json({ error: result.reason }, { status: 409 });
 	}
-
 	return NextResponse.json({ ok: true });
 }

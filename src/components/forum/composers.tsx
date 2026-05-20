@@ -11,11 +11,65 @@ import {
 	ns_inputStyle,
 } from "./atoms";
 
-export function PollComposerSheet({ onClose }: { onClose: () => void }) {
+const POLL_ERRORS: Record<string, string> = {
+	no_session: "Your session expired — sign in again.",
+	missing_question: "Question is required.",
+	need_two_options: "Add at least 2 options.",
+	too_many_options: "Polls can have at most 8 options.",
+};
+
+export function PollComposerSheet({
+	onClose,
+	onPosted,
+}: { onClose: () => void; onPosted?: () => void }) {
 	const [q, setQ] = useState("");
 	const [opts, setOpts] = useState<string[]>(["", "", ""]);
 	const [tag, setTag] = useState<TagId>("general");
 	const [closes, setCloses] = useState("3d");
+	const [posting, setPosting] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	async function submit() {
+		if (posting) return;
+		setError(null);
+		const question = q.trim();
+		const cleanOpts = opts.map((o) => o.trim()).filter((o) => o.length > 0);
+		if (!question) {
+			setError("Question is required");
+			return;
+		}
+		if (cleanOpts.length < 2) {
+			setError("Add at least 2 options");
+			return;
+		}
+		const dayMap: Record<string, number> = {
+			"1d": 1,
+			"3d": 3,
+			"7d": 7,
+			"14d": 14,
+		};
+		const days = dayMap[closes] ?? 3;
+		const closesAt = Date.now() + days * 86_400_000;
+		setPosting(true);
+		try {
+			const r = await fetch("/api/poll", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ question, options: cleanOpts, tag, closesAt }),
+			});
+			const data = await r.json();
+			if (!r.ok) {
+				setError(POLL_ERRORS[data.error] ?? data.error ?? "Failed to post");
+				return;
+			}
+			onPosted?.();
+			onClose();
+		} catch (e) {
+			setError(e instanceof Error ? e.message : "Failed to post");
+		} finally {
+			setPosting(false);
+		}
+	}
 
 	return (
 		<div
@@ -85,9 +139,6 @@ export function PollComposerSheet({ onClose }: { onClose: () => void }) {
 						}}
 					>
 						Only your NSPass membership proof.
-					</span>{" "}
-					<span style={{ color: NS_COLORS.faint }}>
-						(Backend wiring for new polls is coming — for now this is a preview.)
 					</span>
 				</p>
 
@@ -227,6 +278,12 @@ export function PollComposerSheet({ onClose }: { onClose: () => void }) {
 					</div>
 				</div>
 
+				{error ? (
+					<div style={{ marginTop: 12, fontSize: 12, color: "#b91c1c" }}>
+						{error}
+					</div>
+				) : null}
+
 				<div
 					style={{
 						marginTop: 22,
@@ -256,7 +313,8 @@ export function PollComposerSheet({ onClose }: { onClose: () => void }) {
 					</button>
 					<button
 						type="button"
-						onClick={onClose}
+						onClick={submit}
+						disabled={posting}
 						style={{
 							height: 36,
 							padding: "0 18px",
@@ -266,13 +324,14 @@ export function PollComposerSheet({ onClose }: { onClose: () => void }) {
 							border: "none",
 							fontSize: 13,
 							fontWeight: 500,
-							cursor: "pointer",
+							cursor: posting ? "not-allowed" : "pointer",
+							opacity: posting ? 0.7 : 1,
 							display: "inline-flex",
 							alignItems: "center",
 							gap: 6,
 						}}
 					>
-						<PlusIconSm /> Post poll
+						<PlusIconSm /> {posting ? "Posting…" : "Post poll"}
 					</button>
 				</div>
 			</div>

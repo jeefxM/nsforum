@@ -35,17 +35,18 @@ export type Poll = {
 	pinned?: boolean;
 	title: string;
 	body?: string;
+	authorHandle: string;
 	voters: number;
 	comments: number;
 	time: string;
 	closesIn?: string;
+	closed?: boolean;
+	myVote?: number | null;
 	options: PollOption[];
 };
 
 
 export type Category = { id: string; label: string; count: number };
-
-export const FORUM_POLLS: Poll[] = [];
 
 
 export const FORUM_CATEGORIES: Category[] = [

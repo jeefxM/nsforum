@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Poll } from "@/lib/forum-data";
 import type { UiThread } from "@/lib/forum-ui-types";
 import { NS_COLORS } from "./atoms";
 import { PollComposerSheet, ThreadComposerSheet } from "./composers";
@@ -32,6 +33,7 @@ export function ForumApp({
 
 	const [threads, setThreads] = useState<UiThread[]>([]);
 	const [threadsLoading, setThreadsLoading] = useState(true);
+	const [polls, setPolls] = useState<Poll[]>([]);
 
 	const refreshThreads = useCallback(async () => {
 		try {
@@ -45,15 +47,37 @@ export function ForumApp({
 		}
 	}, []);
 
+	const refreshPolls = useCallback(async () => {
+		try {
+			const r = await fetch("/api/poll", { cache: "no-store" });
+			if (!r.ok) return;
+			const data = await r.json();
+			const list: Poll[] = data.polls ?? [];
+			setPolls(list);
+			// Seed the local vote map from the server so a refresh reflects
+			// votes cast on other devices.
+			setVotes((prev) => {
+				const next = { ...prev };
+				for (const p of list) {
+					if (typeof p.myVote === "number") next[p.id] = p.myVote;
+				}
+				return next;
+			});
+		} catch {}
+	}, []);
+
 	useEffect(() => {
 		refreshThreads();
-		// Background polling while the threads view is visible — catches
-		// other members' posts without a websocket.
+		refreshPolls();
+		// Background polling while a list view is visible — catches other
+		// members' posts and votes without a websocket.
 		const t = setInterval(() => {
-			if (section === "threads" && !openThreadId) refreshThreads();
+			if (openThreadId) return;
+			if (section === "threads") refreshThreads();
+			if (section === "polls") refreshPolls();
 		}, 5000);
 		return () => clearInterval(t);
-	}, [refreshThreads, section, openThreadId]);
+	}, [refreshThreads, refreshPolls, section, openThreadId]);
 
 	// NSPass postMessage handshake
 	useEffect(() => {
@@ -145,12 +169,38 @@ export function ForumApp({
 		setOpenThreadId(null);
 	}
 
-	function handleVote(postId: string, idx: number) {
+	async function handleVote(postId: string, idx: number) {
 		if (!signedIn) {
 			handleSignIn();
 			return;
 		}
-		setVotes((v) => ({ ...v, [postId]: idx }));
+		if (votes[postId] != null) return; // already voted
+		setVotes((v) => ({ ...v, [postId]: idx })); // optimistic
+		try {
+			const r = await fetch("/api/poll/cast", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ pollId: postId, option: idx }),
+			});
+			if (!r.ok) {
+				const data = await r.json().catch(() => ({}));
+				// already_voted: keep the vote shown; anything else: roll back.
+				if (data.error !== "already_voted") {
+					setVotes((v) => {
+						const next = { ...v };
+						delete next[postId];
+						return next;
+					});
+				}
+			}
+		} catch {
+			setVotes((v) => {
+				const next = { ...v };
+				delete next[postId];
+				return next;
+			});
+		}
+		refreshPolls();
 	}
 
 	function openThread(id: string) {
@@ -230,6 +280,7 @@ export function ForumApp({
 							lockStyle="light"
 							density="regular"
 							activeCat={activeCat}
+							polls={polls}
 							votes={votes}
 							showCounts={false}
 							onVote={handleVote}
@@ -256,13 +307,20 @@ export function ForumApp({
 					openThreadId={openThreadId}
 					openThreadTag={openThread_?.tag}
 					threads={threads}
+					polls={polls}
 					onOpenThread={openThread}
 					signedIn={signedIn}
 				/>
 			</div>
 
 			{composer === "poll" ? (
-				<PollComposerSheet onClose={() => setComposer(null)} />
+				<PollComposerSheet
+					onClose={() => setComposer(null)}
+					onPosted={() => {
+						setSection("polls");
+						refreshPolls();
+					}}
+				/>
 			) : composer === "thread" ? (
 				<ThreadComposerSheet
 					onClose={() => setComposer(null)}

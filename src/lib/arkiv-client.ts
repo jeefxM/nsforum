@@ -5,7 +5,6 @@ import { braga } from "@arkiv-network/sdk/chains";
 
 const PRIVATE_KEY = process.env.ARKIV_PRIVATE_KEY ?? "";
 const PROJECT = process.env.ARKIV_POLL_PROJECT ?? "nspass-poll";
-export const POLL_ID = process.env.ARKIV_POLL_ID ?? "ns-weekly-hackathons-v1";
 
 let _walletClient: ReturnType<typeof createWalletClient> | null = null;
 let _publicClient: ReturnType<typeof createPublicClient> | null = null;

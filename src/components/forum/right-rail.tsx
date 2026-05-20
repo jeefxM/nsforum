@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { FORUM_POLLS, NS_TAGS, type TagId } from "@/lib/forum-data";
+import { NS_TAGS, type Poll, type TagId } from "@/lib/forum-data";
 import type { UiThread } from "@/lib/forum-ui-types";
 import { NSPassportGlyph, NS_COLORS, TagChip } from "./atoms";
 import type { Section } from "./sidebar";
@@ -53,6 +53,7 @@ export function RightRail({
 	openThreadId,
 	openThreadTag,
 	threads,
+	polls,
 	onOpenThread,
 	signedIn,
 }: {
@@ -60,6 +61,7 @@ export function RightRail({
 	openThreadId: string | null;
 	openThreadTag?: string;
 	threads: UiThread[];
+	polls: Poll[];
 	onOpenThread: (id: string) => void;
 	signedIn: boolean;
 }) {
@@ -252,7 +254,9 @@ export function RightRail({
 		);
 	}
 
-	const closingSoon = FORUM_POLLS.filter((p) => p.closesIn).slice(0, 3);
+	const closingSoon = polls
+		.filter((p) => p.closesIn && !p.closed)
+		.slice(0, 3);
 	return (
 		<aside style={ns_railWrap()}>
 			{closingSoon.length > 0 ? (
