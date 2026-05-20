@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+	--ns-bg: #fbfbfd;
+	--ns-ink: #0a0f1f;
+	--ns-muted: #5a627a;
+	--ns-faint: #8a92ac;
+	--ns-hairline: #e8e9ef;
+	--ns-navy: #061329;
+	--ns-navy-hov: #0d1f3b;
+	--ns-green: #10b981;
+	--ns-card: #ffffff;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	background: var(--ns-bg);
+	color: var(--ns-ink);
+	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+button {
+	font-family: inherit;
+}
+
+input,
+textarea,
+select {
+	font-family: inherit;
+}
+
+a {
+	color: inherit;
+}
+
+@keyframes nsspin {
+	to {
+		transform: rotate(360deg);
+	}
+}
