@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { UiThread } from "@/lib/forum-ui-types";
 import { NS_COLORS } from "./atoms";
 import { PollComposerSheet, ThreadComposerSheet } from "./composers";
@@ -28,6 +28,7 @@ export function ForumApp({
 	const [composer, setComposer] = useState<"poll" | "thread" | null>(null);
 	const [votes, setVotes] = useState<Record<string, number>>({});
 	const [signInBusy, setSignInBusy] = useState(false);
+	const popupWatchRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
 	const [threads, setThreads] = useState<UiThread[]>([]);
 	const [threadsLoading, setThreadsLoading] = useState(true);
@@ -61,6 +62,10 @@ export function ForumApp({
 			const data = e.data;
 			if (!data || typeof data !== "object") return;
 			if (data.type === "nspass.cancelled") {
+				if (popupWatchRef.current !== null) {
+					clearInterval(popupWatchRef.current);
+					popupWatchRef.current = null;
+				}
 				setSignInBusy(false);
 				return;
 			}
@@ -76,11 +81,24 @@ export function ForumApp({
 							window.location.reload();
 						}
 					})
-					.finally(() => setSignInBusy(false));
+					.finally(() => {
+						if (popupWatchRef.current !== null) {
+							clearInterval(popupWatchRef.current);
+							popupWatchRef.current = null;
+						}
+						setSignInBusy(false);
+					});
 			}
 		}
 		window.addEventListener("message", onMessage);
 		return () => window.removeEventListener("message", onMessage);
+	}, []);
+
+	// Stop the popup-close watcher if the forum unmounts mid-sign-in.
+	useEffect(() => {
+		return () => {
+			if (popupWatchRef.current !== null) clearInterval(popupWatchRef.current);
+		};
 	}, []);
 
 	function handleSignIn() {
@@ -94,12 +112,27 @@ export function ForumApp({
 		const h = 640;
 		const left = window.screenX + (window.outerWidth - w) / 2;
 		const top = window.screenY + (window.outerHeight - h) / 2;
-		window.open(
+		const popup = window.open(
 			`${NSPASS_URL}/authorize?${params.toString()}`,
 			"nspass-authorize",
 			`width=${w},height=${h},left=${left},top=${top}`,
 		);
+		// Popup blocked — leave the button usable so the user can retry.
+		if (!popup) return;
 		setSignInBusy(true);
+		// If the popup is closed or abandoned without completing, the
+		// postMessage handshake never fires — watch for that and free the
+		// button so sign-in works again without a forum reload.
+		if (popupWatchRef.current !== null) clearInterval(popupWatchRef.current);
+		popupWatchRef.current = setInterval(() => {
+			if (popup.closed) {
+				if (popupWatchRef.current !== null) {
+					clearInterval(popupWatchRef.current);
+					popupWatchRef.current = null;
+				}
+				setSignInBusy(false);
+			}
+		}, 700);
 	}
 
 	async function handleSignOut() {
