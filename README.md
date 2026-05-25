@@ -80,6 +80,25 @@ On a second device, the browser fetches `GET /api/backup`, prompts for the passp
 > | Encrypted identity backup     | yes (ciphertext) | no          | no              |
 > | Threads / comments / votes    | yes              | no          | no              |
 
+### Why the forum signs, not the user
+
+Every entity in forumzero is signed by a single server wallet. On the explorer you'll see `$creator = 0x1135D4546611D7CcCC7C4E0315072Ef2E61b9483` on every thread, comment, poll, vote, group snapshot, and backup. That's deliberate.
+
+If each user signed their own posts from their own wallet, the chain would group all their writes under one address. Anyone reading the explorer could deanonymize authors through timing, frequency, or style correlation. **Anonymous and wallet-signed are mutually exclusive.**
+
+So we trade chain-native ownership for cryptographic ownership at the protocol layer:
+
+| What | Who owns it | How it's enforced |
+| --- | --- | --- |
+| Your Semaphore identity (trapdoor + nullifier) | You | Lives only in your browser's localStorage. Server can't read it. |
+| Your encrypted backup | You | PBKDF2 + AES-GCM in the browser. Server stores ciphertext only. Without your passphrase, it's noise. |
+| Your right to post under a given handle | You | Every new post requires a fresh ZK proof produced with your private nullifier. Server can't fabricate one. |
+| Your votes | You | Same nullifier signs everything. One member, one vote, no impersonation. |
+
+`$owner` is never exercised either. Every entity is append-only. Group snapshots get new versions on join or leave. Backups get new versions on update. Threads and comments are write-once. The chain is the source of truth and nobody, including the server, modifies it after the fact.
+
+So when the brief says *"users own their data, instead of their data being owned by the platform,"* in forumzero that means: the forum can't write as you, can't read your identity, can't decrypt your backup, and can't delete what you wrote. It can render your posts. That's it.
+
 ## Tech stack
 
 - **Next.js 16** (App Router, RSC + client components)
