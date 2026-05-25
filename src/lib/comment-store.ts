@@ -87,13 +87,13 @@ export type CreateCommentInput = {
 
 export async function createComment(
 	input: CreateCommentInput,
-): Promise<{ authorHandle: string }> {
+): Promise<{ authorHandle: string; txHash: string }> {
 	const handleContext =
 		input.parentType === "thread" ? input.parentId : "global";
 	const authorHandle = deriveHandle(input.authorNullifier, handleContext);
 	const client = getWalletClient();
 	const body = input.body.slice(0, 4000);
-	await client.createEntity({
+	const { txHash } = await client.createEntity({
 		payload: jsonToPayload({}),
 		contentType: "application/json",
 		attributes: [
@@ -108,5 +108,5 @@ export async function createComment(
 		],
 		expiresIn: THIRTY_DAYS_SECONDS,
 	});
-	return { authorHandle };
+	return { authorHandle, txHash };
 }

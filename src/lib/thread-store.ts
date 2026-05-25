@@ -4,6 +4,7 @@ import { jsonToPayload } from "@arkiv-network/sdk/utils";
 import {
 	PROJECT_ATTRIBUTE,
 	THIRTY_DAYS_SECONDS,
+	entityTxHash,
 	getPublicClient,
 	getWalletClient,
 } from "./arkiv-client";
@@ -19,6 +20,7 @@ export type StoredThread = {
 	pinned: boolean;
 	pinnedWeekly: boolean;
 	hot: boolean;
+	pollId?: string;
 };
 
 function attr<T extends string | number>(
@@ -54,6 +56,7 @@ export async function listThreads(): Promise<StoredThread[]> {
 				pinned: attr(a, "pinned") === "1",
 				pinnedWeekly: attr(a, "pinned_weekly") === "1",
 				hot: attr(a, "hot") === "1",
+				pollId: attr<string>(a, "poll_id") || undefined,
 			});
 		}
 		if (!result.hasNextPage()) break;
@@ -63,7 +66,9 @@ export async function listThreads(): Promise<StoredThread[]> {
 	return out;
 }
 
-export async function getThread(threadId: string): Promise<StoredThread | null> {
+export async function getThread(
+	threadId: string,
+): Promise<(StoredThread & { txHash?: string }) | null> {
 	const client = getPublicClient();
 	const result = await client
 		.buildQuery()
@@ -71,11 +76,13 @@ export async function getThread(threadId: string): Promise<StoredThread | null> 
 		.where(eq("type", "thread"))
 		.where(eq("thread_id", threadId))
 		.withAttributes(true)
+		.withMetadata(true)
 		.limit(1)
 		.fetch();
 	const entity = result.entities[0];
 	if (!entity) return null;
 	const a = entity.attributes;
+	const txHash = await entityTxHash(entity);
 	return {
 		threadId,
 		tag: attr<string>(a, "tag") ?? "general",
@@ -86,6 +93,8 @@ export async function getThread(threadId: string): Promise<StoredThread | null> 
 		pinned: attr(a, "pinned") === "1",
 		pinnedWeekly: attr(a, "pinned_weekly") === "1",
 		hot: attr(a, "hot") === "1",
+		pollId: attr<string>(a, "poll_id") || undefined,
+		txHash,
 	};
 }
 
@@ -97,18 +106,19 @@ export type CreateThreadInput = {
 	pinned?: boolean;
 	pinnedWeekly?: boolean;
 	hot?: boolean;
+	pollId?: string;
 	threadId?: string; // for seed use
 };
 
 export async function createThread(
 	input: CreateThreadInput,
-): Promise<{ threadId: string; authorHandle: string }> {
+): Promise<{ threadId: string; authorHandle: string; txHash: string }> {
 	const threadId = input.threadId ?? randomShortId(4);
 	const authorHandle = deriveHandle(input.authorNullifier, threadId);
 	const client = getWalletClient();
 	const title = input.title.slice(0, 200);
 	const body = input.body.slice(0, 4000);
-	await client.createEntity({
+	const { txHash } = await client.createEntity({
 		payload: jsonToPayload({}),
 		contentType: "application/json",
 		attributes: [
@@ -124,8 +134,9 @@ export async function createThread(
 			{ key: "pinned", value: input.pinned ? "1" : "0" },
 			{ key: "pinned_weekly", value: input.pinnedWeekly ? "1" : "0" },
 			{ key: "hot", value: input.hot ? "1" : "0" },
+			{ key: "poll_id", value: input.pollId ?? "" },
 		],
 		expiresIn: THIRTY_DAYS_SECONDS,
 	});
-	return { threadId, authorHandle };
+	return { threadId, authorHandle, txHash };
 }

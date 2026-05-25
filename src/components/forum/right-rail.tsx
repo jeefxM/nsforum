@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { NS_TAGS, type Poll, type TagId } from "@/lib/forum-data";
 import type { UiThread } from "@/lib/forum-ui-types";
-import { NSPassportGlyph, NS_COLORS, TagChip } from "./atoms";
+import { ZeroPassportGlyph, NS_COLORS, TagChip } from "./atoms";
 import type { Section } from "./sidebar";
 
 function ns_railWrap(): CSSProperties {
@@ -309,7 +309,7 @@ export function RightRail({
 						marginBottom: 6,
 					}}
 				>
-					<NSPassportGlyph size={13} />
+					<ZeroPassportGlyph size={13} />
 					<span
 						style={{
 							fontSize: 11,

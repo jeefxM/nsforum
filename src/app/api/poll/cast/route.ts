@@ -28,5 +28,5 @@ export async function POST(req: NextRequest) {
 	if (!result.ok) {
 		return NextResponse.json({ error: result.reason }, { status: 409 });
 	}
-	return NextResponse.json({ ok: true });
+	return NextResponse.json({ ok: true, txHash: result.txHash });
 }

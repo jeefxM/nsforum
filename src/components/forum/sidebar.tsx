@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { FORUM_CATEGORIES } from "@/lib/forum-data";
-import { NSPassportGlyph, NS_COLORS, PlusIcon } from "./atoms";
+import { ZeroPassportGlyph, NS_COLORS, PlusIcon } from "./atoms";
 
 export type Section = "polls" | "threads";
 
@@ -172,11 +172,11 @@ export function Sidebar({
 						marginBottom: 6,
 					}}
 				>
-					<NSPassportGlyph size={13} />
+					<ZeroPassportGlyph size={13} />
 					<span
 						style={{ fontSize: 11.5, color: NS_COLORS.ink, fontWeight: 600 }}
 					>
-						NSPass
+						ZeroPass
 					</span>
 				</div>
 				{signedIn ? (

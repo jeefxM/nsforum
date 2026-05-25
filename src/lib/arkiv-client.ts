@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "@arkiv-network/sdk/accounts";
 import { braga } from "@arkiv-network/sdk/chains";
 
 const PRIVATE_KEY = process.env.ARKIV_PRIVATE_KEY ?? "";
-const PROJECT = process.env.ARKIV_POLL_PROJECT ?? "nspass-poll";
+const PROJECT = process.env.ARKIV_POLL_PROJECT ?? "zeropass-poll";
 
 let _walletClient: ReturnType<typeof createWalletClient> | null = null;
 let _publicClient: ReturnType<typeof createPublicClient> | null = null;
@@ -35,3 +35,26 @@ export function getPublicClient() {
 
 export const PROJECT_ATTRIBUTE = { key: "project", value: PROJECT };
 export const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
+export const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
+
+/** Resolve the creation tx hash for an entity loaded with `.withMetadata(true)`. */
+export async function entityTxHash(entity: {
+	createdAtBlock?: bigint;
+	transactionIndexInBlock?: bigint;
+}): Promise<string | undefined> {
+	if (
+		entity.createdAtBlock === undefined ||
+		entity.transactionIndexInBlock === undefined
+	) {
+		return undefined;
+	}
+	try {
+		const block = await getPublicClient().getBlock({
+			blockNumber: entity.createdAtBlock,
+		});
+		const hash = block.transactions[Number(entity.transactionIndexInBlock)];
+		return typeof hash === "string" ? hash : undefined;
+	} catch {
+		return undefined;
+	}
+}

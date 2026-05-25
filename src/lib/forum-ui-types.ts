@@ -12,6 +12,11 @@ export type UiThread = {
 	hot: boolean;
 	replies: number;
 	lastReply?: { handle: string; time: string };
+	pollId?: string;
+	hasPoll?: boolean;
+	voters?: number;
+	timestamp: number;
+	lastActivity: number;
 };
 
 export type UiComment = {

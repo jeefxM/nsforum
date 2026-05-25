@@ -1,29 +1,31 @@
 // Forum mock data — polls, threads, archive, tags, categories.
-// Ported from the V2 design prototype (nspass/project/forum-data.jsx).
+// Ported from the V2 design prototype (zeropass/project/forum-data.jsx).
 
 export type TagId =
-	| "hackathons"
-	| "cofounders"
-	| "logistics"
-	| "meta"
-	| "campus"
-	| "offtopic"
-	| "ama"
 	| "general"
-	| "help";
+	| "cohorts"
+	| "ai"
+	| "build"
+	| "trips"
+	| "housing"
+	| "food"
+	| "gym"
+	| "crypto"
+	| "marina";
 
 export type TagStyle = { label: string; bg: string; fg: string };
 
 export const NS_TAGS: Record<TagId, TagStyle> = {
-	hackathons: { label: "Hackathons", bg: "#eef4ff", fg: "#1f4ed8" },
-	cofounders: { label: "Cofounders", bg: "#fef0e7", fg: "#9a3412" },
-	logistics: { label: "Logistics", bg: "#f1f4ee", fg: "#3f6212" },
-	meta: { label: "Meta", bg: "#f5f3ff", fg: "#5b21b6" },
-	campus: { label: "Campus", bg: "#ecfdf5", fg: "#065f46" },
-	offtopic: { label: "Off-topic", bg: "#f3f4f6", fg: "#374151" },
-	ama: { label: "AMA", bg: "#fff7ed", fg: "#9a3412" },
 	general: { label: "General", bg: "#f1f5f9", fg: "#334155" },
-	help: { label: "Help", bg: "#fef2f2", fg: "#991b1b" },
+	cohorts: { label: "Cohorts", bg: "#f5f3ff", fg: "#5b21b6" },
+	ai: { label: "AI", bg: "#eef4ff", fg: "#1f4ed8" },
+	build: { label: "Build", bg: "#fefce8", fg: "#854d0e" },
+	trips: { label: "Trips", bg: "#ecfeff", fg: "#155e75" },
+	housing: { label: "Housing", bg: "#fdf4ff", fg: "#86198f" },
+	food: { label: "Food", bg: "#fff1e6", fg: "#9a3412" },
+	gym: { label: "Gym", bg: "#fef2f2", fg: "#991b1b" },
+	crypto: { label: "Crypto", bg: "#fef9c3", fg: "#854d0e" },
+	marina: { label: "Marina Hotel", bg: "#ecfdf5", fg: "#065f46" },
 };
 
 export type PollOption = { label: string; votes: number };

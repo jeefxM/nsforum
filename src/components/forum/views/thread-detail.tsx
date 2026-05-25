@@ -9,7 +9,7 @@ import {
 	LockWrap,
 	type LockStyle,
 	NS_COLORS,
-	NSPassportGlyph,
+	ZeroPassportGlyph,
 	ShareIcon,
 	TagChip,
 } from "../atoms";
@@ -405,7 +405,7 @@ export function ThreadDetail({
 							gap: 6,
 						}}
 					>
-						<NSPassportGlyph size={12} /> Posting as a fresh handle for this
+						<ZeroPassportGlyph size={12} /> Posting as a fresh handle for this
 						thread
 					</span>
 					<div style={{ flex: 1 }} />

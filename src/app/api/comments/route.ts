@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
 	if (!text) {
 		return NextResponse.json({ error: "missing_body" }, { status: 400 });
 	}
-	const { authorHandle } = await createComment({
+	const { authorHandle, txHash } = await createComment({
 		authorNullifier: session.nullifier,
 		parentType,
 		parentId,
 		body: text,
 	});
-	return NextResponse.json({ ok: true, authorHandle });
+	return NextResponse.json({ ok: true, authorHandle, txHash });
 }

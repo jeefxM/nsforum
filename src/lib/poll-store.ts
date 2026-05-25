@@ -4,6 +4,7 @@ import { jsonToPayload } from "@arkiv-network/sdk/utils";
 import {
 	PROJECT_ATTRIBUTE,
 	THIRTY_DAYS_SECONDS,
+	entityTxHash,
 	getPublicClient,
 	getWalletClient,
 } from "./arkiv-client";
@@ -93,7 +94,9 @@ export async function listPolls(): Promise<StoredPoll[]> {
 	return out;
 }
 
-export async function getPoll(pollId: string): Promise<StoredPoll | null> {
+export async function getPoll(
+	pollId: string,
+): Promise<(StoredPoll & { txHash?: string }) | null> {
 	const client = getPublicClient();
 	const result = await client
 		.buildQuery()
@@ -101,11 +104,15 @@ export async function getPoll(pollId: string): Promise<StoredPoll | null> {
 		.where(eq("type", "poll"))
 		.where(eq("poll_id", pollId))
 		.withAttributes(true)
+		.withMetadata(true)
 		.limit(1)
 		.fetch();
 	const entity = result.entities[0];
 	if (!entity) return null;
-	return parsePoll(entity.attributes);
+	const parsed = parsePoll(entity.attributes);
+	if (!parsed) return null;
+	const txHash = await entityTxHash(entity);
+	return { ...parsed, txHash };
 }
 
 export type CreatePollInput = {
@@ -118,13 +125,13 @@ export type CreatePollInput = {
 
 export async function createPoll(
 	input: CreatePollInput,
-): Promise<{ pollId: string; authorHandle: string }> {
+): Promise<{ pollId: string; authorHandle: string; txHash: string }> {
 	const pollId = randomShortId(4);
 	const authorHandle = deriveHandle(input.authorNullifier, `poll:${pollId}`);
 	const client = getWalletClient();
 	const question = input.question.slice(0, 280);
 	const options = input.options.slice(0, 8).map((o) => o.slice(0, 80));
-	await client.createEntity({
+	const { txHash } = await client.createEntity({
 		payload: jsonToPayload({}),
 		contentType: "application/json",
 		attributes: [
@@ -141,7 +148,7 @@ export async function createPoll(
 		],
 		expiresIn: THIRTY_DAYS_SECONDS,
 	});
-	return { pollId, authorHandle };
+	return { pollId, authorHandle, txHash };
 }
 
 /** Tallies votes by option index. */
@@ -201,7 +208,7 @@ export async function getVote(
 }
 
 export type CastResult =
-	| { ok: true }
+	| { ok: true; txHash: string }
 	| {
 			ok: false;
 			reason: "already_voted" | "invalid_option" | "poll_not_found" | "poll_closed";
@@ -229,7 +236,7 @@ export async function castVote(
 			return { ok: false, reason: "already_voted" } as const;
 		}
 		const client = getWalletClient();
-		await client.createEntity({
+		const { txHash } = await client.createEntity({
 			payload: jsonToPayload({}),
 			contentType: "application/json",
 			attributes: [
@@ -242,6 +249,6 @@ export async function castVote(
 			],
 			expiresIn: THIRTY_DAYS_SECONDS,
 		});
-		return { ok: true as const };
+		return { ok: true as const, txHash };
 	});
 }

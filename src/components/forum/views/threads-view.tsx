@@ -8,7 +8,7 @@ import {
 	LockWrap,
 	type LockStyle,
 	NS_COLORS,
-	NSPassportGlyph,
+	ZeroPassportGlyph,
 	PlusIconSm,
 	TagChip,
 	ns_primaryBtnCompact,
@@ -198,7 +198,7 @@ export function ThreadsView({
 						justifyContent: "center",
 					}}
 				>
-					<NSPassportGlyph size={15} />
+					<ZeroPassportGlyph size={15} />
 				</div>
 				<div style={{ flex: 1 }}>
 					<div

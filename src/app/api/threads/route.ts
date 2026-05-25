@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { listAllComments } from "@/lib/comment-store";
+import { createPoll, getPoll, getTally } from "@/lib/poll-store";
 import { parseSession, sessionCookie } from "@/lib/session";
 import { createThread, listThreads } from "@/lib/thread-store";
 
@@ -23,6 +24,20 @@ export async function GET() {
 		counts.set(c.parentId, bucket);
 	}
 
+	// Resolve voter counts for poll-attached threads in parallel.
+	const voterCounts = new Map<string, number>();
+	await Promise.all(
+		threads
+			.filter((t) => t.pollId)
+			.map(async (t) => {
+				const pollId = t.pollId as string;
+				const poll = await getPoll(pollId);
+				if (!poll) return;
+				const { total } = await getTally(pollId, poll.options.length);
+				voterCounts.set(t.threadId, total);
+			}),
+	);
+
 	const ui = threads.map((t) => {
 		const b = counts.get(t.threadId);
 		return {
@@ -39,6 +54,11 @@ export async function GET() {
 			lastReply: b?.last
 				? { handle: b.last.handle, time: relTime(b.last.t) }
 				: undefined,
+			pollId: t.pollId,
+			hasPoll: Boolean(t.pollId),
+			voters: t.pollId ? (voterCounts.get(t.threadId) ?? 0) : undefined,
+			timestamp: t.timestamp,
+			lastActivity: b?.last ? Math.max(t.timestamp, b.last.t) : t.timestamp,
 		};
 	});
 	return NextResponse.json({ threads: ui });
@@ -50,7 +70,12 @@ export async function POST(req: NextRequest) {
 	if (!session) {
 		return NextResponse.json({ error: "no_session" }, { status: 401 });
 	}
-	let body: { title?: unknown; body?: unknown; tag?: unknown };
+	let body: {
+		title?: unknown;
+		body?: unknown;
+		tag?: unknown;
+		poll?: unknown;
+	};
 	try {
 		body = await req.json();
 	} catch {
@@ -65,13 +90,91 @@ export async function POST(req: NextRequest) {
 	if (!text) {
 		return NextResponse.json({ error: "missing_body" }, { status: 400 });
 	}
-	const { threadId } = await createThread({
-		authorNullifier: session.nullifier,
-		tag,
-		title,
-		body: text,
-	});
-	return NextResponse.json({ ok: true, threadId });
+
+	let pollId: string | undefined;
+	let pollTxHash: string | undefined;
+	try {
+		if (body.poll && typeof body.poll === "object") {
+			const poll = body.poll as {
+				options?: unknown;
+				closesAt?: unknown;
+			};
+			const options = Array.isArray(poll.options)
+				? poll.options
+						.filter((o): o is string => typeof o === "string")
+						.map((o) => o.trim())
+						.filter((o) => o)
+				: [];
+			const closesAt =
+				typeof poll.closesAt === "number" && Number.isFinite(poll.closesAt)
+					? poll.closesAt
+					: 0;
+			if (options.length < 2) {
+				return NextResponse.json(
+					{ error: "need_two_options" },
+					{ status: 400 },
+				);
+			}
+			if (options.length > 8) {
+				return NextResponse.json(
+					{ error: "too_many_options" },
+					{ status: 400 },
+				);
+			}
+			const result = await withTimeout(
+				createPoll({
+					authorNullifier: session.nullifier,
+					tag,
+					question: title,
+					options,
+					closesAt,
+				}),
+				ARKIV_TIMEOUT_MS,
+				"poll_create_timeout",
+			);
+			pollId = result.pollId;
+			pollTxHash = result.txHash;
+		}
+
+		const { threadId, txHash } = await withTimeout(
+			createThread({
+				authorNullifier: session.nullifier,
+				tag,
+				title,
+				body: text,
+				pollId,
+			}),
+			ARKIV_TIMEOUT_MS,
+			"thread_create_timeout",
+		);
+		return NextResponse.json({
+			ok: true,
+			threadId,
+			pollId,
+			txHash,
+			pollTxHash,
+		});
+	} catch (err) {
+		const reason =
+			err instanceof Error ? err.message : "arkiv_write_failed";
+		console.error("POST /api/threads failed:", err);
+		return NextResponse.json({ error: reason }, { status: 502 });
+	}
+}
+
+const ARKIV_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(
+	p: Promise<T>,
+	ms: number,
+	label: string,
+): Promise<T> {
+	return Promise.race([
+		p,
+		new Promise<T>((_, reject) =>
+			setTimeout(() => reject(new Error(label)), ms),
+		),
+	]);
 }
 
 function relTime(ts: number): string {

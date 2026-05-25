@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Newsreader } from "next/font/google";
+import { Inter, JetBrains_Mono, Newsreader, Tektur } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -18,10 +18,16 @@ const mono = JetBrains_Mono({
 	subsets: ["latin"],
 });
 
+const display = Tektur({
+	variable: "--font-display",
+	weight: ["400", "500", "600", "700", "800", "900"],
+	subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
 	title: "NS Forum — Anonymous polls & threads",
 	description:
-		"NSPass-gated polls and threads. Every vote is a zero-knowledge proof of NS membership — never your handle.",
+		"ZeroPass-gated polls and threads. Every vote is a zero-knowledge proof of NS membership — never your handle.",
 };
 
 export default function RootLayout({
@@ -30,7 +36,7 @@ export default function RootLayout({
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<body
-				className={`${inter.variable} ${serif.variable} ${mono.variable} antialiased`}
+				className={`${inter.variable} ${serif.variable} ${mono.variable} ${display.variable} antialiased`}
 			>
 				{children}
 			</body>

@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 :root {
+	--fz-paper: #f5f3ee;
+	--fz-ink: #0a0a0a;
+	--fz-orange: #fe4c02;
 	--ns-bg: #fbfbfd;
 	--ns-ink: #0a0f1f;
 	--ns-muted: #5a627a;

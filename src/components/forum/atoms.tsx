@@ -56,7 +56,7 @@ export function NSLogo({ size = 22 }: { size?: number }) {
 	);
 }
 
-export function NSPassportGlyph({ size = 16 }: { size?: number }) {
+export function ZeroPassportGlyph({ size = 16 }: { size?: number }) {
 	return (
 		<svg
 			width={size * 0.85}
@@ -402,7 +402,7 @@ export function SignInPrompt({
 				onClick={onSignIn}
 				style={ns_primaryBtn({ marginTop: 16, height: 44 })}
 			>
-				<NSPassportGlyph /> Sign in with NSPass
+				<ZeroPassportGlyph /> Sign in with ZeroPass
 			</button>
 			<div
 				style={{
