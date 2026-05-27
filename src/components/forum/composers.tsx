@@ -9,7 +9,6 @@ const FZ_PAPER = "#f5f3ee";
 
 const TAG_ORDER: TagId[] = [
 	"general",
-	"cohorts",
 	"ai",
 	"build",
 	"trips",
@@ -616,7 +615,7 @@ export function ThreadComposerSheet({
 						<input
 							value={title}
 							onChange={(e) => setTitle(e.target.value.slice(0, TITLE_MAX))}
-							placeholder="How did you decide between cohorts?"
+							placeholder="What's on your mind?"
 							autoFocus
 							style={fzInputStyle()}
 							onFocus={fzFocus}

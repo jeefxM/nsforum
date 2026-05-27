@@ -37,6 +37,35 @@ export const PROJECT_ATTRIBUTE = { key: "project", value: PROJECT };
 export const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
 export const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
 
+/**
+ * Retry a flaky Arkiv RPC call. Braga occasionally cancels in-flight
+ * queries with "context cancelled" and similar transient errors; a quick
+ * second attempt almost always succeeds.
+ */
+export async function arkivRetry<T>(
+	fn: () => Promise<T>,
+	attempts = 3,
+	baseDelayMs = 250,
+): Promise<T> {
+	let lastErr: unknown;
+	for (let i = 0; i < attempts; i++) {
+		try {
+			return await fn();
+		} catch (err) {
+			lastErr = err;
+			const msg =
+				err instanceof Error ? err.message : String(err);
+			const transient =
+				/context cancelled|RPC Request failed|timeout|ECONNRESET|fetch failed/i.test(
+					msg,
+				);
+			if (!transient || i === attempts - 1) throw err;
+			await new Promise((r) => setTimeout(r, baseDelayMs * (i + 1)));
+		}
+	}
+	throw lastErr;
+}
+
 /** Resolve the creation tx hash for an entity loaded with `.withMetadata(true)`. */
 export async function entityTxHash(entity: {
 	createdAtBlock?: bigint;

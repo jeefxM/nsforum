@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { listComments } from "@/lib/comment-store";
 import { getPoll, getTally, getVote } from "@/lib/poll-store";
 import { parseSession, sessionCookie } from "@/lib/session";
@@ -13,10 +14,19 @@ export async function GET(
 	const cookieStore = await cookies();
 	const session = parseSession(cookieStore.get(sessionCookie.name)?.value);
 
-	const [thread, comments] = await Promise.all([
-		getThread(id),
-		listComments("thread", id),
-	]);
+	let thread, comments;
+	try {
+		[thread, comments] = await Promise.all([
+			arkivRetry(() => getThread(id)),
+			arkivRetry(() => listComments("thread", id)),
+		]);
+	} catch (err) {
+		console.error(`GET /api/threads/${id} failed after retries:`, err);
+		return NextResponse.json(
+			{ error: "arkiv_read_failed" },
+			{ status: 502 },
+		);
+	}
 	if (!thread) {
 		return NextResponse.json({ error: "not_found" }, { status: 404 });
 	}

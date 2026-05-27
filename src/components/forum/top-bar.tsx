@@ -232,7 +232,7 @@ function UserMenu({
 						className="inline-block h-2.5 w-2.5 rounded-full"
 						style={{ background: BRAND_ORANGE }}
 					/>
-					<span className="hidden sm:inline">{userLabel}</span>
+					<span className="hidden sm:inline">ns_anon</span>
 				</span>
 				<span className={`transition-transform ${open ? "rotate-180" : ""}`}>
 					<ChevronDown />
@@ -245,7 +245,13 @@ function UserMenu({
 							Signed in as
 						</div>
 						<div className="mt-1 truncate text-[13px] font-bold text-black">
-							{userLabel}
+							ns_anon
+						</div>
+						<div
+							className="mt-1 text-[10.5px] tracking-[0.04em] text-black/45"
+							style={{ fontFamily: "var(--font-sans)" }}
+						>
+							Your post handle rotates per thread.
 						</div>
 					</div>
 					<a

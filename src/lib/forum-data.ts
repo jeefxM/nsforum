@@ -3,7 +3,6 @@
 
 export type TagId =
 	| "general"
-	| "cohorts"
 	| "ai"
 	| "build"
 	| "trips"
@@ -17,7 +16,6 @@ export type TagStyle = { label: string; bg: string; fg: string };
 
 export const NS_TAGS: Record<TagId, TagStyle> = {
 	general: { label: "General", bg: "#f1f5f9", fg: "#334155" },
-	cohorts: { label: "Cohorts", bg: "#f5f3ff", fg: "#5b21b6" },
 	ai: { label: "AI", bg: "#eef4ff", fg: "#1f4ed8" },
 	build: { label: "Build", bg: "#fefce8", fg: "#854d0e" },
 	trips: { label: "Trips", bg: "#ecfeff", fg: "#155e75" },

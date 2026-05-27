@@ -20,7 +20,6 @@ const SORTS: { key: SortKey; label: string; icon: React.ReactNode }[] = [
 
 const CATEGORIES: { id: TagId; name: string }[] = [
 	{ id: "general", name: "General" },
-	{ id: "cohorts", name: "Cohorts" },
 	{ id: "ai", name: "AI" },
 	{ id: "build", name: "Build" },
 	{ id: "trips", name: "Trips" },
@@ -55,25 +54,45 @@ function ForumAppInner({
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 	const [threads, setThreads] = useState<UiThread[]>([]);
-	const [threadsLoading, setThreadsLoading] = useState(true);
+	const [threadsLoaded, setThreadsLoaded] = useState(false);
+	// While we haven't gotten a single successful response, keep showing
+	// skeletons even if the first response was empty (Arkiv reads can briefly
+	// return empty just after a write). Only flip to "no threads" once we've
+	// gotten back at least one populated response, or many failed attempts.
+	const [threadsMisses, setThreadsMisses] = useState(0);
+	const THREADS_MISS_LIMIT = 4;
 
 	const refreshThreads = useCallback(async () => {
 		try {
 			const r = await fetch("/api/threads", { cache: "no-store" });
-			if (r.ok) {
-				const data = await r.json();
-				setThreads(data.threads ?? []);
+			if (!r.ok) {
+				setThreadsMisses((n) => n + 1);
+				return;
 			}
-		} finally {
-			setThreadsLoading(false);
+			const data = await r.json();
+			const list = data.threads ?? [];
+			setThreads(list);
+			if (list.length > 0) {
+				setThreadsLoaded(true);
+				setThreadsMisses(0);
+			} else {
+				setThreadsMisses((n) => n + 1);
+			}
+		} catch {
+			setThreadsMisses((n) => n + 1);
 		}
 	}, []);
 
 	useEffect(() => {
 		refreshThreads();
-		const t = setInterval(refreshThreads, 5000);
+		// Poll faster while we haven't loaded anything; ease off once we have.
+		const interval = threadsLoaded ? 5000 : 2000;
+		const t = setInterval(refreshThreads, interval);
 		return () => clearInterval(t);
-	}, [refreshThreads]);
+	}, [refreshThreads, threadsLoaded]);
+
+	const threadsLoading =
+		!threadsLoaded && threadsMisses < THREADS_MISS_LIMIT;
 
 	function handleSignIn() {
 		window.location.href = "/auth";
@@ -986,21 +1005,33 @@ function ThreadDetailPanel({
 	const [comments, setComments] = useState<CommentRow[]>([]);
 	const [poll, setPoll] = useState<PollDetail | null>(null);
 	const [voting, setVoting] = useState(false);
-	const [loading, setLoading] = useState(true);
+	const [missAttempts, setMissAttempts] = useState(0);
 	const [draft, setDraft] = useState("");
 	const [posting, setPosting] = useState(false);
 	const [focused, setFocused] = useState(false);
 
+	// Treat 404 / empty / fetch failure as transient for the first N polls.
+	// Arkiv reads can be slow or briefly inconsistent right after a write.
+	const MISS_LIMIT = 4; // ~20s of polling before we say "not found"
+
 	const refresh = useCallback(async () => {
 		try {
 			const r = await fetch(`/api/threads/${threadId}`, { cache: "no-store" });
-			if (!r.ok) return;
+			if (!r.ok) {
+				setMissAttempts((n) => n + 1);
+				return;
+			}
 			const data = await r.json();
-			setThread(data.thread ?? null);
-			setComments(data.comments ?? []);
-			setPoll(data.poll ?? null);
-		} finally {
-			setLoading(false);
+			if (data.thread) {
+				setThread(data.thread);
+				setComments(data.comments ?? []);
+				setPoll(data.poll ?? null);
+				setMissAttempts(0);
+			} else {
+				setMissAttempts((n) => n + 1);
+			}
+		} catch {
+			setMissAttempts((n) => n + 1);
 		}
 	}, [threadId]);
 
@@ -1040,9 +1071,11 @@ function ThreadDetailPanel({
 
 	useEffect(() => {
 		refresh();
-		const t = setInterval(refresh, 5000);
+		// Faster poll while we haven't loaded yet; slow it down once we have the thread.
+		const interval = thread ? 5000 : 2000;
+		const t = setInterval(refresh, interval);
 		return () => clearInterval(t);
-	}, [refresh]);
+	}, [refresh, thread]);
 
 	async function postReply() {
 		if (!signedIn) return onSignIn();
@@ -1159,21 +1192,27 @@ function ThreadDetailPanel({
 						</svg>
 					</a>
 				) : null}
-				<div className="flex items-center gap-2 border-l border-black px-4 py-3.5 text-black/55 md:px-6">
-					<span
-						className="inline-block h-2 w-2 animate-pulse rounded-full"
-						style={brandVar}
-					>
+				{thread ? (
+					<div className="flex items-center gap-2 border-l border-black px-4 py-3.5 text-black md:px-6">
 						<span
-							className="block h-full w-full rounded-full"
+							className="inline-block h-1.5 w-1.5 rounded-full"
 							style={{ background: BRAND_ORANGE }}
 						/>
-					</span>
-					LIVE
-				</div>
+						<span
+							className="text-[11px] tracking-[0.04em] text-black/75"
+							style={{ fontFamily: "var(--font-display)" }}
+						>
+							{thread.authorHandle}
+						</span>
+						<span className="text-black/30">·</span>
+						<span className="text-[11px] text-black/55">
+							{thread.time}
+						</span>
+					</div>
+				) : null}
 			</div>
 
-			{loading && !thread ? (
+			{!thread && missAttempts < MISS_LIMIT ? (
 				<div className="flex-1 px-6 py-12 text-center text-[12px] font-bold tracking-[0.2em] text-black/50">
 					LOADING…
 				</div>
@@ -1183,8 +1222,8 @@ function ThreadDetailPanel({
 				</div>
 			) : (
 				<article className="flex-1">
-					{/* Hero — eyebrow, title, author */}
-					<header className="border-b-2 border-black px-5 py-6 md:px-10 md:py-9">
+					{/* Hero + body merged into one continuous article block */}
+					<header className="px-5 pt-10 md:px-10 md:pt-14">
 						<div className="flex items-center gap-3">
 							<span className="flex h-8 w-8 items-center justify-center border border-black">
 								<RowGlyph kind={thread.tag} />
@@ -1198,7 +1237,7 @@ function ThreadDetailPanel({
 							</span>
 						</div>
 						<h1
-							className="mt-6 text-black"
+							className="mt-5 text-black"
 							style={{
 								fontFamily: "var(--font-display)",
 								fontWeight: 700,
@@ -1209,31 +1248,32 @@ function ThreadDetailPanel({
 						>
 							{thread.title}
 						</h1>
-						<div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-bold tracking-[0.06em] text-black/55"
-							style={{ fontFamily: "var(--font-display)" }}
-						>
-							<span className="inline-flex items-center gap-2">
-								<span
-									className="inline-block h-1.5 w-1.5 rounded-full"
-									style={{ background: BRAND_ORANGE }}
-								/>
-								{thread.authorHandle}
-							</span>
-							<span className="text-black/30">·</span>
-							<span>{thread.time}</span>
-						</div>
 					</header>
 
-
-					{/* Body */}
 					{thread.body ? (
-						<div className="border-b-2 border-black px-5 py-6 md:px-10 md:py-8">
-							<p
-								className="max-w-[68ch] whitespace-pre-wrap text-[15px] leading-[1.7] text-black/85"
+						<div className="border-b-2 border-black px-5 pt-6 pb-10 md:px-10 md:pt-7 md:pb-14">
+							<div
+								className="max-w-[68ch] text-[16.5px] leading-[1.75] text-black/80"
 								style={{ fontFamily: "var(--font-sans)" }}
 							>
-								{thread.body}
-							</p>
+								{thread.body
+									.split(/\n{2,}/)
+									.map((para) => para.trim())
+									.filter(Boolean)
+									.map((para, i) => (
+										<p
+											key={i}
+											className={i === 0 ? "" : "mt-5"}
+										>
+											{para.split("\n").map((line, j, arr) => (
+												<span key={j}>
+													{line}
+													{j < arr.length - 1 ? " " : null}
+												</span>
+											))}
+										</p>
+									))}
+							</div>
 						</div>
 					) : null}
 
@@ -1533,7 +1573,6 @@ function RowGlyph({ kind }: { kind: string }) {
 	if (k.includes("trip")) return <IconPlane />;
 	if (k.includes("hous")) return <IconHouse />;
 	if (k.includes("marina")) return <IconBuilding />;
-	if (k.includes("cohort")) return <IconUsers />;
 	return <IconChat />;
 }
 
@@ -1653,16 +1692,6 @@ function IconBuilding() {
 		<svg {...svgProps()}>
 			<rect x="5" y="3" width="14" height="18" rx="1" />
 			<path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3" />
-		</svg>
-	);
-}
-function IconUsers() {
-	return (
-		<svg {...svgProps()}>
-			<circle cx="9" cy="9" r="3.2" />
-			<path d="M3 20c.6-3.4 3-5 6-5s5.4 1.6 6 5" />
-			<circle cx="17" cy="8" r="2.5" />
-			<path d="M15 14c2-.4 4 0 5.6 1.6.6.6 1 1.4 1.2 2.4" />
 		</svg>
 	);
 }

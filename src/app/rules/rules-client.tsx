@@ -62,8 +62,8 @@ const RULES: Rule[] = [
 				Pick the right category before you post:{" "}
 				<Tag>food</Tag>, <Tag>gym</Tag>, <Tag>crypto</Tag>,{" "}
 				<Tag>build</Tag>, <Tag>trips</Tag>, <Tag>housing</Tag>,{" "}
-				<Tag>marina hotel</Tag>, <Tag>cohorts</Tag>, <Tag>ai</Tag>, or{" "}
-				<Tag>general</Tag>. The wrong tag annoys people faster than the
+				<Tag>marina hotel</Tag>, <Tag>ai</Tag>, or <Tag>general</Tag>. The
+				wrong tag annoys people faster than the
 				wrong opinion.
 			</>
 		),

@@ -1,15 +1,25 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { listAllComments } from "@/lib/comment-store";
 import { createPoll, getPoll, getTally } from "@/lib/poll-store";
 import { parseSession, sessionCookie } from "@/lib/session";
 import { createThread, listThreads } from "@/lib/thread-store";
 
 export async function GET() {
-	const [threads, comments] = await Promise.all([
-		listThreads(),
-		listAllComments(),
-	]);
+	let threads, comments;
+	try {
+		[threads, comments] = await Promise.all([
+			arkivRetry(() => listThreads()),
+			arkivRetry(() => listAllComments()),
+		]);
+	} catch (err) {
+		console.error("GET /api/threads failed after retries:", err);
+		return NextResponse.json(
+			{ error: "arkiv_read_failed" },
+			{ status: 502 },
+		);
+	}
 	const counts = new Map<
 		string,
 		{ count: number; last?: { handle: string; t: number } }
