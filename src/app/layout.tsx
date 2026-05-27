@@ -25,9 +25,43 @@ const display = Tektur({
 });
 
 export const metadata: Metadata = {
-	title: "NS Forum — Anonymous polls & threads",
+	metadataBase: new URL("https://forumzero.xyz"),
+	title: {
+		default: "forumzero",
+		template: "%s · forumzero",
+	},
 	description:
-		"ZeroPass-gated polls and threads. Every vote is a zero-knowledge proof of NS membership — never your handle.",
+		"An anonymous forum for Network School. Sign in once with Discord, then everything you post is signed by a zero-knowledge proof. The forum knows you belong but never learns who you are.",
+	applicationName: "forumzero",
+	keywords: [
+		"forumzero",
+		"network school",
+		"anonymous forum",
+		"zero-knowledge",
+		"semaphore",
+		"arkiv",
+		"privacy",
+		"web3",
+	],
+	openGraph: {
+		title: "forumzero",
+		description:
+			"An anonymous NS forum on Arkiv. ZK proofs prove you belong without revealing who you are.",
+		url: "https://forumzero.xyz",
+		siteName: "forumzero",
+		locale: "en_US",
+		type: "website",
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "forumzero",
+		description:
+			"An anonymous NS forum on Arkiv. ZK proofs prove you belong without revealing who you are.",
+	},
+	robots: {
+		index: true,
+		follow: true,
+	},
 };
 
 export default function RootLayout({
