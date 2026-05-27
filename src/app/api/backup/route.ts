@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { deleteBackup, getBackup, putBackup } from "@/lib/backup-store";
 import { discordCookie, parseDiscordSession } from "@/lib/discord-session";
 
@@ -13,8 +14,21 @@ export async function GET() {
 	if (!session) {
 		return NextResponse.json({ error: "no_discord" }, { status: 401 });
 	}
-	const backup = await getBackup(session.subjectId);
-	return NextResponse.json({ backup });
+	// Wrap in arkivRetry. A transient "context cancelled" here would
+	// silently return null, and the auth flow would push the user to
+	// "set new passphrase" instead of restoring their existing identity.
+	// That permanently orphans their old identity if they then mint a
+	// new one. Better to fail loudly after retries than to lie.
+	try {
+		const backup = await arkivRetry(() => getBackup(session.subjectId));
+		return NextResponse.json({ backup });
+	} catch (err) {
+		console.error("GET /api/backup failed after retries:", err);
+		return NextResponse.json(
+			{ error: "arkiv_read_failed" },
+			{ status: 502 },
+		);
+	}
 }
 
 export async function PUT(req: NextRequest) {
@@ -31,8 +45,18 @@ export async function PUT(req: NextRequest) {
 	if (!body.backup || typeof body.backup !== "object") {
 		return NextResponse.json({ error: "missing_backup" }, { status: 400 });
 	}
-	const { txHash } = await putBackup(session.subjectId, body.backup);
-	return NextResponse.json({ ok: true, txHash });
+	try {
+		const { txHash } = await arkivRetry(() =>
+			putBackup(session.subjectId, body.backup),
+		);
+		return NextResponse.json({ ok: true, txHash });
+	} catch (err) {
+		console.error("PUT /api/backup failed after retries:", err);
+		return NextResponse.json(
+			{ error: "arkiv_write_failed" },
+			{ status: 502 },
+		);
+	}
 }
 
 export async function DELETE() {
@@ -40,6 +64,14 @@ export async function DELETE() {
 	if (!session) {
 		return NextResponse.json({ error: "no_discord" }, { status: 401 });
 	}
-	const { txHash } = await deleteBackup(session.subjectId);
-	return NextResponse.json({ ok: true, txHash });
+	try {
+		const { txHash } = await arkivRetry(() => deleteBackup(session.subjectId));
+		return NextResponse.json({ ok: true, txHash });
+	} catch (err) {
+		console.error("DELETE /api/backup failed after retries:", err);
+		return NextResponse.json(
+			{ error: "arkiv_write_failed" },
+			{ status: 502 },
+		);
+	}
 }
