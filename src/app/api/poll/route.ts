@@ -1,18 +1,30 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { createPoll, getTally, getVote, listPolls } from "@/lib/poll-store";
 import { parseSession, sessionCookie } from "@/lib/session";
 
 export async function GET() {
 	const cookieStore = await cookies();
 	const session = parseSession(cookieStore.get(sessionCookie.name)?.value);
-	const polls = await listPolls();
+	let polls;
+	try {
+		polls = await arkivRetry(() => listPolls());
+	} catch (err) {
+		console.error(
+			"GET /api/poll failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json({ error: "arkiv_read_failed" }, { status: 502 });
+	}
 
 	const ui = await Promise.all(
 		polls.map(async (p) => {
-			const { tally, total } = await getTally(p.pollId, p.options.length);
+			const { tally, total } = await arkivRetry(() =>
+				getTally(p.pollId, p.options.length),
+			);
 			const myVote = session
-				? await getVote(p.pollId, session.nullifier)
+				? await arkivRetry(() => getVote(p.pollId, session.nullifier))
 				: null;
 			return {
 				id: p.pollId,
@@ -79,14 +91,24 @@ export async function POST(req: NextRequest) {
 		return NextResponse.json({ error: "too_many_options" }, { status: 400 });
 	}
 
-	const { pollId } = await createPoll({
-		authorNullifier: session.nullifier,
-		tag,
-		question,
-		options,
-		closesAt,
-	});
-	return NextResponse.json({ ok: true, pollId });
+	try {
+		const { pollId } = await arkivRetry(() =>
+			createPoll({
+				authorNullifier: session.nullifier,
+				tag,
+				question,
+				options,
+				closesAt,
+			}),
+		);
+		return NextResponse.json({ ok: true, pollId });
+	} catch (err) {
+		console.error(
+			"POST /api/poll failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json({ error: "arkiv_write_failed" }, { status: 502 });
+	}
 }
 
 function relTime(ts: number): string {

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import {
 	type ParentType,
 	createComment,
@@ -17,8 +18,16 @@ export async function GET(req: NextRequest) {
 			{ status: 400 },
 		);
 	}
-	const comments = await listComments(parentType, parentId);
-	return NextResponse.json({ comments });
+	try {
+		const comments = await arkivRetry(() => listComments(parentType, parentId));
+		return NextResponse.json({ comments });
+	} catch (err) {
+		console.error(
+			"GET /api/comments failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json({ error: "arkiv_read_failed" }, { status: 502 });
+	}
 }
 
 export async function POST(req: NextRequest) {
@@ -49,11 +58,21 @@ export async function POST(req: NextRequest) {
 	if (!text) {
 		return NextResponse.json({ error: "missing_body" }, { status: 400 });
 	}
-	const { authorHandle, txHash } = await createComment({
-		authorNullifier: session.nullifier,
-		parentType,
-		parentId,
-		body: text,
-	});
-	return NextResponse.json({ ok: true, authorHandle, txHash });
+	try {
+		const { authorHandle, txHash } = await arkivRetry(() =>
+			createComment({
+				authorNullifier: session.nullifier,
+				parentType,
+				parentId,
+				body: text,
+			}),
+		);
+		return NextResponse.json({ ok: true, authorHandle, txHash });
+	} catch (err) {
+		console.error(
+			"POST /api/comments failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json({ error: "arkiv_write_failed" }, { status: 502 });
+	}
 }

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { deleteBackup } from "@/lib/backup-store";
 import { discordCookie, parseDiscordSession } from "@/lib/discord-session";
 import { leaveGroup } from "@/lib/group-store";
@@ -25,17 +26,23 @@ export async function POST() {
 	const txHashes: { backup?: string; leave?: string } = {};
 
 	try {
-		const leaveRes = await leaveGroup(session.subjectId);
+		const leaveRes = await arkivRetry(() => leaveGroup(session.subjectId));
 		if (leaveRes?.txHash) txHashes.leave = leaveRes.txHash;
 	} catch (e) {
-		console.error("leaveGroup failed during delete", e);
+		console.error(
+			"leaveGroup failed during delete:",
+			e instanceof Error ? e.message.split("\n")[0] : e,
+		);
 	}
 
 	try {
-		const { txHash } = await deleteBackup(session.subjectId);
+		const { txHash } = await arkivRetry(() => deleteBackup(session.subjectId));
 		txHashes.backup = txHash;
 	} catch (e) {
-		console.error("deleteBackup failed during delete", e);
+		console.error(
+			"deleteBackup failed during delete:",
+			e instanceof Error ? e.message.split("\n")[0] : e,
+		);
 	}
 
 	cookieStore.delete(sessionCookie.name);

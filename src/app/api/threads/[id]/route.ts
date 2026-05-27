@@ -21,7 +21,10 @@ export async function GET(
 			arkivRetry(() => listComments("thread", id)),
 		]);
 	} catch (err) {
-		console.error(`GET /api/threads/${id} failed after retries:`, err);
+		console.error(
+			`GET /api/threads/${id} failed after retries:`,
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
 		return NextResponse.json(
 			{ error: "arkiv_read_failed" },
 			{ status: 502 },

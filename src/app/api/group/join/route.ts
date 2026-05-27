@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { discordCookie, parseDiscordSession } from "@/lib/discord-session";
 import { joinGroup } from "@/lib/group-store";
 
@@ -24,16 +25,26 @@ export async function POST(req: NextRequest) {
 		return NextResponse.json({ error: "missing_commitment" }, { status: 400 });
 	}
 
-	const result = await joinGroup(session.subjectId, commitment);
-	if (!result.ok) {
-		return NextResponse.json(
-			{ error: result.reason, ok: false },
-			{ status: 409 },
+	try {
+		const result = await arkivRetry(() =>
+			joinGroup(session.subjectId, commitment),
 		);
+		if (!result.ok) {
+			return NextResponse.json(
+				{ error: result.reason, ok: false },
+				{ status: 409 },
+			);
+		}
+		return NextResponse.json({
+			ok: true,
+			txHash: result.txHash,
+			snapshot: result.snapshot,
+		});
+	} catch (err) {
+		console.error(
+			"POST /api/group/join failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json({ error: "arkiv_write_failed" }, { status: 502 });
 	}
-	return NextResponse.json({
-		ok: true,
-		txHash: result.txHash,
-		snapshot: result.snapshot,
-	});
 }

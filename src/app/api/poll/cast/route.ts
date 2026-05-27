@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { castVote } from "@/lib/poll-store";
 import { parseSession, sessionCookie } from "@/lib/session";
 
@@ -24,9 +25,19 @@ export async function POST(req: NextRequest) {
 		return NextResponse.json({ error: "missing_option" }, { status: 400 });
 	}
 
-	const result = await castVote(body.pollId, session.nullifier, body.option);
-	if (!result.ok) {
-		return NextResponse.json({ error: result.reason }, { status: 409 });
+	try {
+		const result = await arkivRetry(() =>
+			castVote(body.pollId as string, session.nullifier, body.option as number),
+		);
+		if (!result.ok) {
+			return NextResponse.json({ error: result.reason }, { status: 409 });
+		}
+		return NextResponse.json({ ok: true, txHash: result.txHash });
+	} catch (err) {
+		console.error(
+			"POST /api/poll/cast failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json({ error: "arkiv_write_failed" }, { status: 502 });
 	}
-	return NextResponse.json({ ok: true, txHash: result.txHash });
 }

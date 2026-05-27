@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
 					{ status: 400 },
 				);
 			}
-			const result = await withTimeout(
+			const result = await arkivRetry(() =>
 				createPoll({
 					authorNullifier: session.nullifier,
 					tag,
@@ -139,14 +139,12 @@ export async function POST(req: NextRequest) {
 					options,
 					closesAt,
 				}),
-				ARKIV_TIMEOUT_MS,
-				"poll_create_timeout",
 			);
 			pollId = result.pollId;
 			pollTxHash = result.txHash;
 		}
 
-		const { threadId, txHash } = await withTimeout(
+		const { threadId, txHash } = await arkivRetry(() =>
 			createThread({
 				authorNullifier: session.nullifier,
 				tag,
@@ -154,8 +152,6 @@ export async function POST(req: NextRequest) {
 				body: text,
 				pollId,
 			}),
-			ARKIV_TIMEOUT_MS,
-			"thread_create_timeout",
 		);
 		return NextResponse.json({
 			ok: true,
@@ -165,26 +161,15 @@ export async function POST(req: NextRequest) {
 			pollTxHash,
 		});
 	} catch (err) {
-		const reason =
-			err instanceof Error ? err.message : "arkiv_write_failed";
-		console.error("POST /api/threads failed:", err);
-		return NextResponse.json({ error: reason }, { status: 502 });
+		console.error(
+			"POST /api/threads failed after retries:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json(
+			{ error: "arkiv_write_failed" },
+			{ status: 502 },
+		);
 	}
-}
-
-const ARKIV_TIMEOUT_MS = 45_000;
-
-function withTimeout<T>(
-	p: Promise<T>,
-	ms: number,
-	label: string,
-): Promise<T> {
-	return Promise.race([
-		p,
-		new Promise<T>((_, reject) =>
-			setTimeout(() => reject(new Error(label)), ms),
-		),
-	]);
 }
 
 function relTime(ts: number): string {

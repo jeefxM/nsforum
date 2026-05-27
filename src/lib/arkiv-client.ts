@@ -38,13 +38,15 @@ export const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
 export const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
 
 /**
- * Retry a flaky Arkiv RPC call. Braga occasionally cancels in-flight
- * queries with "context cancelled" and similar transient errors; a quick
- * second attempt almost always succeeds.
+ * Retry a flaky Arkiv RPC call. Braga frequently cancels in-flight
+ * queries with "context cancelled" and similar transient errors. We try
+ * up to 6 times with exponential-ish backoff before giving up.
+ *
+ * Total worst-case wait: ~7.75s before the final failure surfaces.
  */
 export async function arkivRetry<T>(
 	fn: () => Promise<T>,
-	attempts = 3,
+	attempts = 6,
 	baseDelayMs = 250,
 ): Promise<T> {
 	let lastErr: unknown;
@@ -53,14 +55,21 @@ export async function arkivRetry<T>(
 			return await fn();
 		} catch (err) {
 			lastErr = err;
-			const msg =
-				err instanceof Error ? err.message : String(err);
+			const msg = err instanceof Error ? err.message : String(err);
 			const transient =
 				/context cancelled|RPC Request failed|timeout|ECONNRESET|fetch failed/i.test(
 					msg,
 				);
 			if (!transient || i === attempts - 1) throw err;
-			await new Promise((r) => setTimeout(r, baseDelayMs * (i + 1)));
+			// One-line log instead of the full viem stack trace. The full
+			// trace floods the dev console and signals nothing useful since
+			// the next attempt usually succeeds.
+			console.warn(
+				`[arkiv] transient (attempt ${i + 1}/${attempts}): ${msg.split("\n")[0]}`,
+			);
+			// 250, 500, 1000, 1500, 2000, 2500 ms
+			const wait = Math.min(baseDelayMs * 2 ** i, 2500);
+			await new Promise((r) => setTimeout(r, wait));
 		}
 	}
 	throw lastErr;

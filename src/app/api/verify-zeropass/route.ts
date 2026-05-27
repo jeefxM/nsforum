@@ -2,6 +2,7 @@ import { type SemaphoreProof, verifyProof } from "@semaphore-protocol/core";
 import { encodeBytes32String, toBigInt } from "ethers";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { arkivRetry } from "@/lib/arkiv-client";
 import { getGroupSnapshot } from "@/lib/group-store";
 import { serializeSession, sessionCookie } from "@/lib/session";
 
@@ -26,7 +27,19 @@ export async function POST(req: NextRequest) {
 		return NextResponse.json({ error: "wrong_scope" }, { status: 400 });
 	}
 
-	const snapshot = await getGroupSnapshot();
+	let snapshot;
+	try {
+		snapshot = await arkivRetry(() => getGroupSnapshot());
+	} catch (err) {
+		console.error(
+			"POST /api/verify-zeropass snapshot read failed:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+		return NextResponse.json(
+			{ error: "arkiv_read_failed" },
+			{ status: 502 },
+		);
+	}
 	if (String(proof.merkleTreeRoot) !== snapshot.root) {
 		return NextResponse.json({ error: "stale_root" }, { status: 400 });
 	}
