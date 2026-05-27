@@ -151,6 +151,34 @@ export async function createPoll(
 	return { pollId, authorHandle, txHash };
 }
 
+/**
+ * Total voter count per poll across ALL polls in the project, in one query.
+ * Use this in list endpoints instead of N calls to getTally() — fewer RPCs
+ * means fewer "context cancelled" failures from Braga under load.
+ */
+export async function getVoterCounts(): Promise<Map<string, number>> {
+	const client = getPublicClient();
+	const counts = new Map<string, number>();
+	let result = await client
+		.buildQuery()
+		.where(eq(PROJECT_ATTRIBUTE.key, PROJECT_ATTRIBUTE.value))
+		.where(eq("type", "vote"))
+		.withAttributes(true)
+		.limit(500)
+		.fetch();
+	while (true) {
+		for (const entity of result.entities) {
+			const pid = entity.attributes.find((a) => a.key === "poll_id")?.value;
+			if (typeof pid === "string") {
+				counts.set(pid, (counts.get(pid) ?? 0) + 1);
+			}
+		}
+		if (!result.hasNextPage()) break;
+		await result.next();
+	}
+	return counts;
+}
+
 /** Tallies votes by option index. */
 export async function getTally(
 	pollId: string,

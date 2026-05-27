@@ -20,12 +20,24 @@ export async function GET() {
 
 	const ui = await Promise.all(
 		polls.map(async (p) => {
-			const { tally, total } = await arkivRetry(() =>
-				getTally(p.pollId, p.options.length),
-			);
-			const myVote = session
-				? await arkivRetry(() => getVote(p.pollId, session.nullifier))
-				: null;
+			let tally: number[] = new Array(p.options.length).fill(0);
+			let total = 0;
+			let myVote: number | null = null;
+			try {
+				const t = await arkivRetry(() => getTally(p.pollId, p.options.length));
+				tally = t.tally;
+				total = t.total;
+				if (session) {
+					myVote = await arkivRetry(() =>
+						getVote(p.pollId, session.nullifier),
+					);
+				}
+			} catch (err) {
+				console.warn(
+					`[polls] tally/vote for ${p.pollId} failed:`,
+					err instanceof Error ? err.message.split("\n")[0] : err,
+				);
+			}
 			return {
 				id: p.pollId,
 				kind: "poll" as const,

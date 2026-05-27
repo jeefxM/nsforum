@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { arkivRetry } from "@/lib/arkiv-client";
 import { listAllComments } from "@/lib/comment-store";
-import { createPoll, getPoll, getTally } from "@/lib/poll-store";
+import { createPoll, getVoterCounts } from "@/lib/poll-store";
 import { parseSession, sessionCookie } from "@/lib/session";
 import { createThread, listThreads } from "@/lib/thread-store";
 
@@ -34,19 +34,18 @@ export async function GET() {
 		counts.set(c.parentId, bucket);
 	}
 
-	// Resolve voter counts for poll-attached threads in parallel.
-	const voterCounts = new Map<string, number>();
-	await Promise.all(
-		threads
-			.filter((t) => t.pollId)
-			.map(async (t) => {
-				const pollId = t.pollId as string;
-				const poll = await getPoll(pollId);
-				if (!poll) return;
-				const { total } = await getTally(pollId, poll.options.length);
-				voterCounts.set(t.threadId, total);
-			}),
-	);
+	// Resolve voter counts in one aggregate vote query instead of N×2 RPCs.
+	// Decorative — if the lookup fails after retries, ship zeros rather than
+	// failing the whole list.
+	let votesByPoll = new Map<string, number>();
+	try {
+		votesByPoll = await arkivRetry(() => getVoterCounts());
+	} catch (err) {
+		console.warn(
+			"[threads] voter counts failed:",
+			err instanceof Error ? err.message.split("\n")[0] : err,
+		);
+	}
 
 	const ui = threads.map((t) => {
 		const b = counts.get(t.threadId);
@@ -66,7 +65,7 @@ export async function GET() {
 				: undefined,
 			pollId: t.pollId,
 			hasPoll: Boolean(t.pollId),
-			voters: t.pollId ? (voterCounts.get(t.threadId) ?? 0) : undefined,
+			voters: t.pollId ? (votesByPoll.get(t.pollId) ?? 0) : undefined,
 			timestamp: t.timestamp,
 			lastActivity: b?.last ? Math.max(t.timestamp, b.last.t) : t.timestamp,
 		};

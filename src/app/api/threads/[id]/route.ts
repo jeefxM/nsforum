@@ -36,26 +36,36 @@ export async function GET(
 
 	let pollPayload: unknown = undefined;
 	if (thread.pollId) {
-		const poll = await getPoll(thread.pollId);
-		if (poll) {
-			const { tally, total } = await getTally(poll.pollId, poll.options.length);
-			const myVote = session
-				? await getVote(poll.pollId, session.nullifier)
-				: null;
-			pollPayload = {
-				id: poll.pollId,
-				question: poll.question,
-				closesAt: poll.closesAt,
-				closed: poll.closesAt > 0 && Date.now() > poll.closesAt,
-				closesIn: closesIn(poll.closesAt),
-				voters: total,
-				myVote,
-				txHash: poll.txHash,
-				options: poll.options.map((label, i) => ({
-					label,
-					votes: tally[i] ?? 0,
-				})),
-			};
+		try {
+			const poll = await arkivRetry(() => getPoll(thread.pollId as string));
+			if (poll) {
+				const { tally, total } = await arkivRetry(() =>
+					getTally(poll.pollId, poll.options.length),
+				);
+				const myVote = session
+					? await arkivRetry(() => getVote(poll.pollId, session.nullifier))
+					: null;
+				pollPayload = {
+					id: poll.pollId,
+					question: poll.question,
+					closesAt: poll.closesAt,
+					closed: poll.closesAt > 0 && Date.now() > poll.closesAt,
+					closesIn: closesIn(poll.closesAt),
+					voters: total,
+					myVote,
+					txHash: poll.txHash,
+					options: poll.options.map((label, i) => ({
+						label,
+						votes: tally[i] ?? 0,
+					})),
+				};
+			}
+		} catch (err) {
+			// Thread still renders without poll data rather than 500ing.
+			console.warn(
+				`[thread ${id}] poll load failed:`,
+				err instanceof Error ? err.message.split("\n")[0] : err,
+			);
 		}
 	}
 
